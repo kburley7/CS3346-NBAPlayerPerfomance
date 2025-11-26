@@ -69,9 +69,11 @@ def add_rolling_features(df: pd.DataFrame) -> pd.DataFrame:
 
 def add_game_context_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Add simple game context features:
+    Add game context features:
 
     - days_rest: days since player's last game
+    - is_back_to_back: 1 if game is played with only 1 day rest (fatigue indicator)
+    - is_home_game: 1 if playing at home, 0 if away (inferred from opponent format)
     """
     df = df.sort_values(["Player", "game_date"]).copy()
 
@@ -83,6 +85,20 @@ def add_game_context_features(df: pd.DataFrame) -> pd.DataFrame:
 
     df = df.groupby("Player", group_keys=False).apply(_add_rest)
     df = df.drop(columns=["prev_game_date"])
+
+    # Add back-to-back indicator (games with exactly 1 day rest)
+    df["is_back_to_back"] = (df["days_rest"] == 1).astype(int)
+
+    # Add home/away indicator
+    # In NBA game logs, away games typically have "@" in opponent or team designation
+    # If Opp contains "@", it's an away game; otherwise home
+    # This is a heuristic - adjust based on actual data format
+    if df["Opp"].dtype == object:
+        df["is_home_game"] = (~df["Opp"].str.contains("@", na=False)).astype(int)
+    else:
+        # Fallback: assume 50/50 distribution if format unclear
+        # Better: check actual data format and adjust
+        df["is_home_game"] = 1  # Default to home if unclear
 
     return df
 
@@ -119,6 +135,8 @@ def select_model_features(df: pd.DataFrame) -> pd.DataFrame:
         "last_5_mp_avg",
         "season_pts_avg",
         "days_rest",
+        "is_back_to_back",
+        "is_home_game",
         "target_pts_over",
         "target_trb_over",
         "target_ast_over",

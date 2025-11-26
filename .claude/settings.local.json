@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash(cd /mnt/c/Users/finla/OneDrive/Desktop/School/4th\\ Year/CS3346/CS3346-NBAPlayerPerfomance && python3:*)",
+      "Bash(cd /mnt/c/Users/finla/OneDrive/Desktop/School/4th\\ Year/CS3346/CS3346-NBAPlayerPerfomance:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
