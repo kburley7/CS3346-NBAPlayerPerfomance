@@ -22,7 +22,7 @@ import joblib
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
-from sklearn.model_selection import train_test_split
+from sklearn.model_selection import train_test_split, GridSearchCV, TimeSeriesSplit
 
 FEATURES_PATH = "data/processed/features.csv"
 MODELS_DIR = "models"
@@ -44,7 +44,10 @@ def load_features(path: str = FEATURES_PATH) -> pd.DataFrame:
 
 def train_test_split_xy(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
-    Split data into train and test sets.
+    Split data into train and test sets using TIME-BASED split.
+
+    Uses chronological split (first 80% of games for training, last 20% for testing)
+    to prevent data leakage and simulate real-world prediction scenario.
 
     Features used:
     - all numeric engineered columns, excluding:
@@ -66,37 +69,89 @@ def train_test_split_xy(df: pd.DataFrame) -> Tuple[np.ndarray, np.ndarray, np.nd
         "target_ast_over",
     ]
 
-    feature_cols = [c for c in df.columns if c not in exclude_cols]
-    X = df[feature_cols].values
-    y = df[TARGET_COL].values
+    # Sort by date to ensure chronological order
+    df_sorted = df.sort_values("game_date").reset_index(drop=True)
 
-    X_train, X_test, y_train, y_test = train_test_split(
-        X,
-        y,
-        test_size=TEST_SIZE,
-        random_state=RANDOM_STATE,
-        stratify=y,
-    )
+    # Calculate split index for time-based split (80/20)
+    split_idx = int(len(df_sorted) * (1 - TEST_SIZE))
+
+    # Split chronologically
+    train_df = df_sorted.iloc[:split_idx]
+    test_df = df_sorted.iloc[split_idx:]
+
+    # Extract features and target
+    feature_cols = [c for c in df.columns if c not in exclude_cols]
+
+    X_train = train_df[feature_cols].values
+    y_train = train_df[TARGET_COL].values
+    X_test = test_df[feature_cols].values
+    y_test = test_df[TARGET_COL].values
+
+    print(f"📅 Time-based split:")
+    print(f"   Training: {train_df['game_date'].min()} to {train_df['game_date'].max()} ({len(train_df)} games)")
+    print(f"   Testing:  {test_df['game_date'].min()} to {test_df['game_date'].max()} ({len(test_df)} games)")
 
     return X_train, X_test, y_train, y_test
 
 
-def train_random_forest(X_train: np.ndarray, y_train: np.ndarray) -> RandomForestClassifier:
+def train_random_forest(X_train: np.ndarray, y_train: np.ndarray, tune_hyperparameters: bool = False) -> RandomForestClassifier:
     """
     Train a Random Forest classifier.
 
-    You can tweak hyperparameters here if you want to experiment later.
+    Args:
+        X_train: Training features
+        y_train: Training labels
+        tune_hyperparameters: If True, performs GridSearchCV to find best hyperparameters
+
+    Returns:
+        Trained RandomForestClassifier
     """
-    model = RandomForestClassifier(
-        n_estimators=300,      # number of trees
-        max_depth=None,       # let trees grow until pure / min_samples constraints
-        min_samples_split=2,
-        min_samples_leaf=1,
-        random_state=RANDOM_STATE,
-        n_jobs=-1,            # use all CPU cores
-    )
-    model.fit(X_train, y_train)
-    return model
+    if tune_hyperparameters:
+        print("🔧 Tuning hyperparameters with GridSearchCV...")
+
+        # Base model
+        base_model = RandomForestClassifier(random_state=RANDOM_STATE, n_jobs=-1)
+
+        # Parameter grid - focused on key parameters for quick tuning
+        param_grid = {
+            'n_estimators': [200, 300],
+            'max_depth': [20, 30, None],
+            'min_samples_split': [2, 5],
+            'min_samples_leaf': [1, 2],
+        }
+
+        # Use TimeSeriesSplit for time-aware cross-validation
+        tscv = TimeSeriesSplit(n_splits=3)
+
+        # Grid search with ROC-AUC scoring
+        grid_search = GridSearchCV(
+            base_model,
+            param_grid,
+            cv=tscv,
+            scoring='roc_auc',
+            n_jobs=-1,
+            verbose=1
+        )
+
+        grid_search.fit(X_train, y_train)
+
+        print(f"✅ Best parameters: {grid_search.best_params_}")
+        print(f"✅ Best CV ROC-AUC: {grid_search.best_score_:.3f}")
+
+        return grid_search.best_estimator_
+
+    else:
+        # Default hyperparameters (good baseline)
+        model = RandomForestClassifier(
+            n_estimators=300,
+            max_depth=None,
+            min_samples_split=2,
+            min_samples_leaf=1,
+            random_state=RANDOM_STATE,
+            n_jobs=-1,
+        )
+        model.fit(X_train, y_train)
+        return model
 
 
 def save_model(model, name: str) -> None:
@@ -116,8 +171,16 @@ def main():
     np.save("data/processed/X_test.npy", X_test)
     np.save("data/processed/y_test.npy", y_test)
 
-    # Train Random Forest
-    rf = train_random_forest(X_train, y_train)
+    # Save feature names for later analysis
+    exclude_cols = ["Player", "Tm", "Opp", "game_date", "PTS", "TRB", "AST",
+                    "target_pts_over", "target_trb_over", "target_ast_over"]
+    feature_names = [c for c in df.columns if c not in exclude_cols]
+    np.save("data/processed/feature_names.npy", np.array(feature_names))
+
+    # Train Random Forest with optional hyperparameter tuning
+    # Set tune_hyperparameters=True to enable GridSearchCV (takes longer but better results)
+    TUNE_HYPERPARAMETERS = True  # Change to False for quick training with defaults
+    rf = train_random_forest(X_train, y_train, tune_hyperparameters=TUNE_HYPERPARAMETERS)
 
     # Name includes target for clarity
     model_name = f"random_forest_{TARGET_COL}"
