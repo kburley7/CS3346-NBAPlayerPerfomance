@@ -16,8 +16,6 @@ The goals of this project are:
 - Evaluate prediction accuracy and probability calibration
 - Visualize and interpret model performance
 
----
-
 ## Features
 
 - Game-level player performance dataset
@@ -35,8 +33,6 @@ The goals of this project are:
   - Brier Score
   - Calibration curves
 - Model insights and feature importance
-
----
 
 ## Repository Structure
 
