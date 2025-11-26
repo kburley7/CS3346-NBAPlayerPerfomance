@@ -75,3 +75,6 @@ def main():
     for name in model_names:
         model = load_model(name)
         evaluate_model(model, X_test, y_test, model_name=name)
+
+if __name__ == "__main__":
+    main()
