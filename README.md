@@ -50,7 +50,7 @@ pip install -r requirements.txt
 
 ```
 
-### Run the Pipline 
+### 2. Run the Pipline 
 
 Run these comands in succession 
 
