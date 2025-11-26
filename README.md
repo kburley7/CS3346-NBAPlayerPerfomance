@@ -55,8 +55,11 @@ pip install -r requirements.txt
 Run these comands in succession 
 
 python -m src.data_loader
+
 python -m src.feature_engineering
+
 python -m src.models
+
 python -m src.evaluation
 
 
