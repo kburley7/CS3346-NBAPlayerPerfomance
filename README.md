@@ -34,5 +34,29 @@ The goals of this project are:
   - Calibration curves
 - Model insights and feature importance
 
-## Repository Structure
+## How to Run and Train the Model
+
+This project processes NBA game data, builds features, trains a Random Forest classifier, and evaluates its performance.  
+Follow the steps below to run the full pipeline.
+
+---
+
+### 1. Install Requirements
+
+If you have `requirements.txt`:
+
+```bash
+pip install -r requirements.txt
+
+```
+
+### Run the Pipline 
+
+Run these comands in succession 
+
+python -m src.data_loader
+python -m src.feature_engineering
+python -m src.models
+python -m src.evaluation
+
 
