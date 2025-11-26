@@ -1,6 +1,6 @@
 # CS3346-NBAPlayerPerfomance
 
-# 🏀 NBA Player Performance Prediction Model
+# NBA Player Performance Prediction Model
 
 ## Overview
 
@@ -16,9 +16,7 @@ The goals of this project are:
 - Evaluate prediction accuracy and probability calibration
 - Visualize and interpret model performance
 
----
-
-## ✨ Features
+## Features
 
 - Game-level player performance dataset
 - Rolling statistical features (last 5 / last 10 games)
@@ -36,7 +34,5 @@ The goals of this project are:
   - Calibration curves
 - Model insights and feature importance
 
----
-
-## 📂 Repository Structure
+## Repository Structure
 
