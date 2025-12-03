@@ -1,167 +1,148 @@
 """
 feature_engineering.py
 
-Creates model-ready features and target labels from cleaned game logs.
-
-Targets:
-- target_pts_over: 1 if PTS > POINTS_THRESHOLD else 0
-- target_trb_over: 1 if TRB > REBOUNDS_THRESHOLD else 0
-- target_ast_over: 1 if AST > ASSISTS_THRESHOLD else 0
+Takes cleaned NBA game logs and builds:
+- Rolling performance features (PTS, TRB, AST, MP)
+- Simple schedule features (days since last game, back-to-back flag)
+- Regression targets for actual stats:
+    - target_pts: points scored in the game
+    - target_trb: rebounds in the game
+    - target_ast: assists in the game
 
 Outputs:
 - data/processed/features.csv
 """
 
 import os
+from typing import List
+
 import pandas as pd
 
 CLEAN_DATA_PATH = "data/processed/clean_games.csv"
 FEATURES_PATH = "data/processed/features.csv"
 
-# Thresholds (change to whatever lines you care about)
-POINTS_THRESHOLD = 22.5
-REBOUNDS_THRESHOLD = 8.5
-ASSISTS_THRESHOLD = 5.5
-
 
 def load_clean_data(path: str = CLEAN_DATA_PATH) -> pd.DataFrame:
+    """Load cleaned game logs."""
     if not os.path.exists(path):
-        raise FileNotFoundError(f"Clean data not found at: {path}")
-    return pd.read_csv(path, parse_dates=["game_date"])
+        raise FileNotFoundError(f"Clean data file not found at: {path}")
+    df = pd.read_csv(path, parse_dates=["game_date"])
+    return df
 
 
-def add_rolling_features(df: pd.DataFrame) -> pd.DataFrame:
+def add_rolling_features(
+    df: pd.DataFrame,
+    group_cols: List[str] = ["Player"],
+    stat_cols: List[str] = ["PTS", "TRB", "AST", "MP"],
+    windows: List[int] = [5, 10],
+) -> pd.DataFrame:
     """
-    Add rolling stats per player (only past games used).
+    For each player, compute rolling averages for the given stats over the last N games.
 
-    For each player:
-    - last_3_pts_avg, last_5_pts_avg
-    - last_3_trb_avg, last_5_trb_avg
-    - last_3_ast_avg, last_5_ast_avg
-    - last_5_mp_avg
-    - season_pts_avg (up to that game)
+    Important:
+    - We shift by 1 game so that the current game's features only use PAST games.
     """
-    df = df.sort_values(["Player", "game_date"]).copy()
+    df = df.sort_values(group_cols + ["game_date"]).copy()
+    grouped = df.groupby(group_cols, group_keys=False)
 
-    def _add_for_player(group: pd.DataFrame) -> pd.DataFrame:
-        for stat in ["PTS", "TRB", "AST"]:
-            group[f"last_3_{stat.lower()}_avg"] = (
-                group[stat].shift(1).rolling(window=3, min_periods=1).mean()
+    for stat in stat_cols:
+        stat_lower = stat.lower()
+        # Previous game's raw value
+        df[f"{stat_lower}_prev"] = grouped[stat].shift(1)
+
+        for w in windows:
+            df[f"{stat_lower}_avg_{w}"] = (
+                grouped[stat]
+                .shift(1)  # exclude current game
+                .rolling(window=w, min_periods=1)
+                .mean()
             )
-            group[f"last_5_{stat.lower()}_avg"] = (
-                group[stat].shift(1).rolling(window=5, min_periods=1).mean()
-            )
-
-        group["last_5_mp_avg"] = (
-            group["MP"].shift(1).rolling(window=5, min_periods=1).mean()
-        )
-
-        group["season_pts_avg"] = (
-            group["PTS"].shift(1).expanding(min_periods=1).mean()
-        )
-
-        return group
-
-    df = df.groupby("Player", group_keys=False).apply(_add_for_player)
 
     return df
 
 
-def add_game_context_features(df: pd.DataFrame) -> pd.DataFrame:
+def add_schedule_features(
+    df: pd.DataFrame,
+    group_cols: List[str] = ["Player"],
+) -> pd.DataFrame:
     """
-    Add game context features:
-
-    - days_rest: days since player's last game
-    - is_back_to_back: 1 if game is played with only 1 day rest (fatigue indicator)
-    - is_home_game: 1 if playing at home, 0 if away (inferred from opponent format)
+    Add simple schedule-based features:
+    - days_since_last_game: difference in days between this game and previous game
+    - is_back_to_back: 1 if days_since_last_game == 1, else 0
     """
-    df = df.sort_values(["Player", "game_date"]).copy()
+    df = df.sort_values(group_cols + ["game_date"]).copy()
+    grouped = df.groupby(group_cols, group_keys=False)
 
-    def _add_rest(group: pd.DataFrame) -> pd.DataFrame:
-        group["prev_game_date"] = group["game_date"].shift(1)
-        group["days_rest"] = (group["game_date"] - group["prev_game_date"]).dt.days
-        group["days_rest"] = group["days_rest"].fillna(3)  # neutral default
-        return group
-
-    df = df.groupby("Player", group_keys=False).apply(_add_rest)
-    df = df.drop(columns=["prev_game_date"])
-
-    # Add back-to-back indicator (games with exactly 1 day rest)
-    df["is_back_to_back"] = (df["days_rest"] == 1).astype(int)
-
-    # Add home/away indicator
-    # In NBA game logs, away games typically have "@" in opponent or team designation
-    # If Opp contains "@", it's an away game; otherwise home
-    # This is a heuristic - adjust based on actual data format
-    if df["Opp"].dtype == object:
-        df["is_home_game"] = (~df["Opp"].str.contains("@", na=False)).astype(int)
-    else:
-        # Fallback: assume 50/50 distribution if format unclear
-        # Better: check actual data format and adjust
-        df["is_home_game"] = 1  # Default to home if unclear
+    df["days_since_last_game"] = grouped["game_date"].diff().dt.days
+    df["is_back_to_back"] = (df["days_since_last_game"] == 1).astype(int)
 
     return df
 
 
-def add_targets(df: pd.DataFrame) -> pd.DataFrame:
+def add_target_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Add binary over/under-style targets for PTS, TRB, AST.
+    Add regression targets:
+    - target_pts: actual points scored
+    - target_trb: actual rebounds
+    - target_ast: actual assists
     """
-    df["target_pts_over"] = (df["PTS"] > POINTS_THRESHOLD).astype(int)
-    df["target_trb_over"] = (df["TRB"] > REBOUNDS_THRESHOLD).astype(int)
-    df["target_ast_over"] = (df["AST"] > ASSISTS_THRESHOLD).astype(int)
+    df["target_pts"] = df["PTS"].astype(float)
+    df["target_trb"] = df["TRB"].astype(float)
+    df["target_ast"] = df["AST"].astype(float)
     return df
 
 
-def select_model_features(df: pd.DataFrame) -> pd.DataFrame:
+def finalize_features(df: pd.DataFrame) -> pd.DataFrame:
     """
-    Keep only columns needed for modeling + targets.
+    Drop rows that do not have enough history (e.g., first game for a player),
+    and keep only rows that have all feature columns and targets available.
     """
-    feature_cols = [
+    exclude_cols = [
         "Player",
         "Tm",
         "Opp",
         "game_date",
-        "MP",
         "PTS",
         "TRB",
         "AST",
-        "last_3_pts_avg",
-        "last_5_pts_avg",
-        "last_3_trb_avg",
-        "last_5_trb_avg",
-        "last_3_ast_avg",
-        "last_5_ast_avg",
-        "last_5_mp_avg",
-        "season_pts_avg",
-        "days_rest",
-        "is_back_to_back",
-        "is_home_game",
-        "target_pts_over",
-        "target_trb_over",
-        "target_ast_over",
     ]
 
-    missing = [c for c in feature_cols if c not in df.columns]
-    if missing:
-        raise ValueError(f"Missing feature columns: {missing}")
+    target_cols = ["target_pts", "target_trb", "target_ast"]
 
-    return df[feature_cols].copy()
+    feature_cols = [c for c in df.columns if c not in exclude_cols + target_cols]
+
+    # Drop rows where any feature or target is NaN (early games, missing data)
+    df = df.dropna(subset=feature_cols + target_cols).reset_index(drop=True)
+
+    return df
 
 
 def save_features(df: pd.DataFrame, path: str = FEATURES_PATH) -> None:
+    """Save engineered features + targets to CSV."""
     os.makedirs(os.path.dirname(path), exist_ok=True)
     df.to_csv(path, index=False)
     print(f"✅ Features saved to {path}")
+    print(f"   Rows: {len(df)}, Columns: {len(df.columns)}")
 
 
 def main():
+    # 1. Load cleaned data
     df = load_clean_data()
+
+    # 2. Add rolling performance features
     df = add_rolling_features(df)
-    df = add_game_context_features(df)
-    df = add_targets(df)
-    df_features = select_model_features(df)
-    save_features(df_features)
+
+    # 3. Add schedule features
+    df = add_schedule_features(df)
+
+    # 4. Add regression targets
+    df = add_target_columns(df)
+
+    # 5. Drop rows without full history / targets
+    df = finalize_features(df)
+
+    # 6. Save
+    save_features(df)
 
 
 if __name__ == "__main__":

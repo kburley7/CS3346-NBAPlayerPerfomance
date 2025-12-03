@@ -7,7 +7,7 @@ Expected raw dataset columns (at least):
 - Player: player name
 - Tm: team abbreviation
 - Opp: opponent abbreviation
-- Date/Data: date of game YYYY-MM-DD
+- Date/Data/GAME_DATE: date of game YYYY-MM-DD
 - MP: minutes played (float)
 - PTS: points
 - TRB: total rebounds
@@ -33,13 +33,13 @@ def basic_cleaning(df: pd.DataFrame) -> pd.DataFrame:
     """
     Basic cleaning:
     - Drop rows with missing key fields
-    - Convert Date/Data -> datetime (game_date)
+    - Convert Date/Data/GAME_DATE -> datetime (game_date)
     - Convert MP to numeric
     - Filter out games with 0 or NaN minutes (DNP)
     - Sort by player and date
     """
 
-    # Support either "Date" or "Data" from the raw CSV
+    # Pick a date column: support "Date", "Data", or "GAME_DATE"
     date_col = None
     for candidate in ["Date", "Data", "GAME_DATE"]:
         if candidate in df.columns:
