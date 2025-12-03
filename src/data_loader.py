@@ -3,11 +3,11 @@ data_loader.py
 
 Loads raw NBA player game data, performs basic cleaning, and saves a cleaned CSV.
 
-Dataset columns (at least):
+Expected raw dataset columns (at least):
 - Player: player name
 - Tm: team abbreviation
 - Opp: opponent abbreviation
-- Data: date of game YYYY-MM-DD
+- Date/Data: date of game YYYY-MM-DD
 - MP: minutes played (float)
 - PTS: points
 - TRB: total rebounds
@@ -33,14 +33,33 @@ def basic_cleaning(df: pd.DataFrame) -> pd.DataFrame:
     """
     Basic cleaning:
     - Drop rows with missing key fields
-    - Convert Data -> datetime (game_date)
+    - Convert Date/Data -> datetime (game_date)
     - Convert MP to numeric
     - Filter out games with 0 or NaN minutes (DNP)
     - Sort by player and date
     """
+
+    # Support either "Date" or "Data" from the raw CSV
+    date_col = None
+    for candidate in ["Date", "Data", "GAME_DATE"]:
+        if candidate in df.columns:
+            date_col = candidate
+            break
+
+    if date_col is None:
+        raise ValueError(
+            "No date column found. Expected one of: 'Date', 'Data', 'GAME_DATE'."
+        )
+
     required_cols = [
-        "Player", "Tm", "Opp", "Data",
-        "MP", "PTS", "TRB", "AST"
+        "Player",
+        "Tm",
+        "Opp",
+        date_col,
+        "MP",
+        "PTS",
+        "TRB",
+        "AST",
     ]
 
     missing = [c for c in required_cols if c not in df.columns]
@@ -50,8 +69,8 @@ def basic_cleaning(df: pd.DataFrame) -> pd.DataFrame:
     # Drop rows with missing required values
     df = df.dropna(subset=required_cols)
 
-    # Convert date column
-    df["game_date"] = pd.to_datetime(df["Data"])
+    # Convert date column -> standardized 'game_date'
+    df["game_date"] = pd.to_datetime(df[date_col])
 
     # Convert MP to numeric
     df["MP"] = pd.to_numeric(df["MP"], errors="coerce")
