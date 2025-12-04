@@ -1,19 +1,3 @@
-"""
-models.py
-
-Trains a Random Forest regressor to predict how many points (or rebounds/assists)
-a player will score in a game, based on rolling stats and schedule features.
-
-Current configuration:
-- TARGET_COL = "target_pts"  (predict points)
-
-Outputs:
-- models/random_forest_target_pts.joblib
-- data/processed/X_test.npy
-- data/processed/y_test.npy
-- data/processed/feature_names.npy
-"""
-
 import os
 from typing import Tuple
 

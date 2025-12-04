@@ -1,15 +1,3 @@
-"""
-evaluation.py
-
-Loads trained regression models and test data, evaluates performance, and prints metrics.
-
-Metrics (regression):
-- Mean Absolute Error (MAE)
-- Mean Squared Error (MSE)
-- R² score
-- Feature Importance plot (for tree-based models)
-"""
-
 import os
 
 import joblib
@@ -45,7 +33,7 @@ def plot_feature_importance(
 ) -> None:
     """Plot and save feature importance for tree-based models."""
     if not hasattr(model, "feature_importances_"):
-        print(f"⚠️  Model {model_name} does not have feature_importances_ attribute")
+        print(f"Model {model_name} does not have feature_importances_ attribute")
         return
 
     importances = model.feature_importances_
@@ -66,7 +54,7 @@ def plot_feature_importance(
     os.makedirs(MODELS_DIR, exist_ok=True)
     plot_path = os.path.join(MODELS_DIR, f"{model_name}_feature_importance.png")
     plt.savefig(plot_path, dpi=150, bbox_inches="tight")
-    print(f"📈 Feature importance plot saved to {plot_path}")
+    print(f"Feature importance plot saved to {plot_path}")
     plt.close()
 
     print(f"\n🔍 Top {min(10, len(top_names))} Features:")
@@ -84,7 +72,7 @@ def evaluate_model(model, X_test, y_test, model_name: str, feature_names=None) -
     mse = mean_squared_error(y_test, y_pred)
     r2 = r2_score(y_test, y_pred)
 
-    print(f"\n📊 Results for {model_name} (regression):")
+    print(f"\nResults for {model_name} (regression):")
     print(f"  MAE (mean abs error):   {mae:.3f}")
     print(f"  MSE (mean sq error):    {mse:.3f}")
     print(f"  R² score:               {r2:.3f}")

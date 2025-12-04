@@ -9,6 +9,9 @@ Takes cleaned NBA game logs and builds:
     - target_trb: rebounds in the game
     - target_ast: assists in the game
 
+Critically, we DROP all same-game box score stats from the feature set
+(FG, FGA, 3P, 3PA, FT, FTA, FG%, 3P%, FT%, etc.) to prevent data leakage.
+
 Outputs:
 - data/processed/features.csv
 """
@@ -47,7 +50,7 @@ def add_rolling_features(
 
     for stat in stat_cols:
         stat_lower = stat.lower()
-        # Previous game's raw value
+        # Previous game's raw value (safe: comes from PRIOR game)
         df[f"{stat_lower}_prev"] = grouped[stat].shift(1)
 
         for w in windows:
@@ -92,24 +95,45 @@ def add_target_columns(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
+def drop_leaky_box_score_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Drop same-game box score stats that directly encode the outcome of the game.
+    These MUST NOT be used as features, or the model will "cheat".
+
+    We already used PTS/TRB/AST/MP to build rolling and target columns,
+    so it's safe to drop them here.
+    """
+    leaky_cols = [
+        # Core box score
+        "PTS", "TRB", "AST", "MP",
+        "FG", "FGA", "FG%",
+        "3P", "3PA", "3P%",
+        "FT", "FTA", "FT%",
+        # Other per-game stats (if present)
+        "ORB", "DRB", "STL", "BLK", "TOV", "PF",
+        "GmSc", "+/-",
+    ]
+    return df.drop(columns=leaky_cols, errors="ignore")
+
+
 def finalize_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Drop rows that do not have enough history (e.g., first game for a player),
     and keep only rows that have all feature columns and targets available.
+
+    We:
+    - drop leaky box-score columns
+    - keep Player/Tm/Opp/game_date for reference (they're excluded in models.py)
+    - use only numeric, non-target columns as features
     """
-    exclude_cols = [
-        "Player",
-        "Tm",
-        "Opp",
-        "game_date",
-        "PTS",
-        "TRB",
-        "AST",
-    ]
+    # First, remove leaky columns entirely
+    df = drop_leaky_box_score_columns(df)
 
     target_cols = ["target_pts", "target_trb", "target_ast"]
 
-    feature_cols = [c for c in df.columns if c not in exclude_cols + target_cols]
+    # Identify numeric feature columns (non-target)
+    numeric_cols = df.select_dtypes(include=["number"]).columns.tolist()
+    feature_cols = [c for c in numeric_cols if c not in target_cols]
 
     # Drop rows where any feature or target is NaN (early games, missing data)
     df = df.dropna(subset=feature_cols + target_cols).reset_index(drop=True)
@@ -129,7 +153,7 @@ def main():
     # 1. Load cleaned data
     df = load_clean_data()
 
-    # 2. Add rolling performance features
+    # 2. Add rolling performance features (history-based)
     df = add_rolling_features(df)
 
     # 3. Add schedule features
@@ -138,7 +162,7 @@ def main():
     # 4. Add regression targets
     df = add_target_columns(df)
 
-    # 5. Drop rows without full history / targets
+    # 5. Remove leaky columns & rows without full history
     df = finalize_features(df)
 
     # 6. Save
