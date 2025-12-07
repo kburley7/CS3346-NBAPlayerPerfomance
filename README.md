@@ -21,10 +21,10 @@ How to Run
 
 Run each module in order:
 
-python -m src.data_loader
-python -m src.feature_engineering
-python -m src.models
-python -m src.evaluation
+ - python -m src.data_loader
+ - python -m src.feature_engineering
+ - python -m src.models
+ - python -m src.evaluation
 
 Model Performance
 MAE: 4.78
