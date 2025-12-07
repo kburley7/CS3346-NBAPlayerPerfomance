@@ -26,11 +26,35 @@ Run each module in order:
  - python -m src.models
  - python -m src.evaluation
 
-Model Performance
- - MAE: 4.78
- - MSE: 37.93
- - R²: 0.525
+Explore Model Predictions
 
+After training, you can explore what the model does:
+
+View predictions for specific players:
+
+python view_predictions.py
+
+This shows:
+ - Recent game predictions vs actual results for star players
+ - Which features influenced each prediction
+ - Interactive mode to query any player
+
+Generate performance visualizations:
+
+python visualize_model.py
+
+This creates:
+ - Predicted vs Actual scatter plot
+ - Error distribution histogram
+ - Accuracy breakdown charts
+ - Saved to models/model_performance_visualization.png
+
+Model Performance
+ - MAE: 4.78 points (average prediction error)
+ - MSE: 37.93
+ - R²: 0.525 (explains 52.5% of variance)
+ - 61.2% of predictions within 5 points
+ - 90.0% of predictions within 10 points
 
 These are realistic results for NBA player scoring prediction.
 
@@ -58,6 +82,8 @@ After running the pipeline, you will have:
  - data/processed/y_test.npy
  - data/processed/feature_names.npy
  - models/random_forest_target_pts.joblib
+ - models/random_forest_target_pts_feature_importance.png
+ - models/model_performance_visualization.png (after running visualize_model.py)
 
 Requirements
 
