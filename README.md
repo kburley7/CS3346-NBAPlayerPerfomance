@@ -27,9 +27,9 @@ Run each module in order:
  - python -m src.evaluation
 
 Model Performance
-MAE: 4.78
-MSE: 37.93
-R²: 0.525
+ - MAE: 4.78
+ - MSE: 37.93
+ - R²: 0.525
 
 
 These are realistic results for NBA player scoring prediction.
@@ -52,12 +52,12 @@ Output Files
 
 After running the pipeline, you will have:
 
-data/processed/clean_games.csv
-data/processed/features.csv
-data/processed/X_test.npy
-data/processed/y_test.npy
-data/processed/feature_names.npy
-models/random_forest_target_pts.joblib
+ - data/processed/clean_games.csv
+ - data/processed/features.csv
+ - data/processed/X_test.npy
+ - data/processed/y_test.npy
+ - data/processed/feature_names.npy
+ - models/random_forest_target_pts.joblib
 
 Requirements
 
