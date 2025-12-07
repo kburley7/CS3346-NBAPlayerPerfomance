@@ -17,21 +17,6 @@ Features
 
  - Provides feature importance visualization
 
-Project Structure
-data/
-  raw/
-  processed/
-
-models/
-  random_forest_target_pts.joblib
-  random_forest_target_pts_feature_importance.png
-
-src/
-  data_loader.py
-  feature_engineering.py
-  models.py
-  evaluation.py
-
 How to Run
 
 Run each module in order:
