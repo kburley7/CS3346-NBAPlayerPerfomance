@@ -1,5 +1,7 @@
 NBA Player Performance Prediction
 
+The dataset can be found here: https://www.kaggle.com/datasets/eduardopalmieri/nba-player-stats-season-2425
+
 This project predicts how many points an NBA player will score in their next game using machine learning.
 The system uses historical game logs, rolling averages, and schedule features while avoiding data leakage.
 
